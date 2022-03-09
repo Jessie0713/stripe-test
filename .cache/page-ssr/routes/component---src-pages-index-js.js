@@ -7975,17 +7975,33 @@ function useIsFocusVisible() {
 
 /***/ }),
 
-/***/ "./node_modules/@stripe/stripe-js/dist/stripe.esm.js":
-/*!***********************************************************!*\
-  !*** ./node_modules/@stripe/stripe-js/dist/stripe.esm.js ***!
-  \***********************************************************/
-/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+/***/ "./node_modules/@stripe/stripe-js/dist/pure.js":
+/*!*****************************************************!*\
+  !*** ./node_modules/@stripe/stripe-js/dist/pure.js ***!
+  \*****************************************************/
+/***/ ((__unused_webpack_module, exports) => {
 
 "use strict";
-__webpack_require__.r(__webpack_exports__);
-/* harmony export */ __webpack_require__.d(__webpack_exports__, {
-/* harmony export */   "loadStripe": () => (/* binding */ loadStripe)
-/* harmony export */ });
+
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+
+function _typeof(obj) {
+  "@babel/helpers - typeof";
+
+  if (typeof Symbol === "function" && typeof Symbol.iterator === "symbol") {
+    _typeof = function (obj) {
+      return typeof obj;
+    };
+  } else {
+    _typeof = function (obj) {
+      return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj;
+    };
+  }
+
+  return _typeof(obj);
+}
+
 var V3_URL = 'https://js.stripe.com/v3';
 var V3_URL_REGEX = /^https:\/\/js\.stripe\.com\/v3\/?(\?.*)?$/;
 var EXISTING_SCRIPT_MESSAGE = 'loadStripe.setLoadParameters was called but an existing Stripe.js script already exists in the document; existing script parameters will be used';
@@ -8090,31 +8106,54 @@ var initStripe = function initStripe(maybeStripe, args, startTime) {
   registerWrapper(stripe, startTime);
   return stripe;
 };
+var validateLoadParams = function validateLoadParams(params) {
+  var errorMessage = "invalid load parameters; expected object of shape\n\n    {advancedFraudSignals: boolean}\n\nbut received\n\n    ".concat(JSON.stringify(params), "\n");
 
-// own script injection.
-
-var stripePromise$1 = Promise.resolve().then(function () {
-  return loadScript(null);
-});
-var loadCalled = false;
-stripePromise$1["catch"](function (err) {
-  if (!loadCalled) {
-    console.warn(err);
+  if (params === null || _typeof(params) !== 'object') {
+    throw new Error(errorMessage);
   }
-});
+
+  if (Object.keys(params).length === 1 && typeof params.advancedFraudSignals === 'boolean') {
+    return params;
+  }
+
+  throw new Error(errorMessage);
+};
+
+var loadParams;
+var loadStripeCalled = false;
 var loadStripe = function loadStripe() {
   for (var _len = arguments.length, args = new Array(_len), _key = 0; _key < _len; _key++) {
     args[_key] = arguments[_key];
   }
 
-  loadCalled = true;
+  loadStripeCalled = true;
   var startTime = Date.now();
-  return stripePromise$1.then(function (maybeStripe) {
+  return loadScript(loadParams).then(function (maybeStripe) {
     return initStripe(maybeStripe, args, startTime);
   });
 };
 
+loadStripe.setLoadParameters = function (params) {
+  if (loadStripeCalled) {
+    throw new Error('You cannot change load parameters after calling loadStripe');
+  }
 
+  loadParams = validateLoadParams(params);
+};
+
+exports.loadStripe = loadStripe;
+
+
+/***/ }),
+
+/***/ "./node_modules/@stripe/stripe-js/pure.js":
+/*!************************************************!*\
+  !*** ./node_modules/@stripe/stripe-js/pure.js ***!
+  \************************************************/
+/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+
+module.exports = __webpack_require__(/*! ./dist/pure.js */ "./node_modules/@stripe/stripe-js/dist/pure.js");
 
 
 /***/ }),
@@ -8170,125 +8209,6 @@ function toVal(mix) {
 	}
 	return str;
 }
-
-
-/***/ }),
-
-/***/ "./node_modules/dotenv/lib/main.js":
-/*!*****************************************!*\
-  !*** ./node_modules/dotenv/lib/main.js ***!
-  \*****************************************/
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
-
-const fs = __webpack_require__(/*! fs */ "fs")
-const path = __webpack_require__(/*! path */ "path")
-const os = __webpack_require__(/*! os */ "os")
-
-const LINE = /(?:^|^)\s*(?:export\s+)?([\w.-]+)(?:\s*=\s*?|:\s+?)(\s*'(?:\\'|[^'])*'|\s*"(?:\\"|[^"])*"|\s*`(?:\\`|[^`])*`|[^#\r\n]+)?\s*(?:#.*)?(?:$|$)/mg
-
-// Parser src into an Object
-function parse (src) {
-  const obj = {}
-
-  // Convert buffer to string
-  let lines = src.toString()
-
-  // Convert line breaks to same format
-  lines = lines.replace(/\r\n?/mg, '\n')
-
-  let match
-  while ((match = LINE.exec(lines)) != null) {
-    const key = match[1]
-
-    // Default undefined or null to empty string
-    let value = (match[2] || '')
-
-    // Remove whitespace
-    value = value.trim()
-
-    // Check if double quoted
-    const maybeQuote = value[0]
-
-    // Remove surrounding quotes
-    value = value.replace(/^(['"`])([\s\S]*)\1$/mg, '$2')
-
-    // Expand newlines if double quoted
-    if (maybeQuote === '"') {
-      value = value.replace(/\\n/g, '\n')
-      value = value.replace(/\\r/g, '\r')
-    }
-
-    // Add to object
-    obj[key] = value
-  }
-
-  return obj
-}
-
-function _log (message) {
-  console.log(`[dotenv][DEBUG] ${message}`)
-}
-
-function _resolveHome (envPath) {
-  return envPath[0] === '~' ? path.join(os.homedir(), envPath.slice(1)) : envPath
-}
-
-// Populates process.env from .env file
-function config (options) {
-  let dotenvPath = path.resolve(process.cwd(), '.env')
-  let encoding = 'utf8'
-  const debug = Boolean(options && options.debug)
-  const override = Boolean(options && options.override)
-
-  if (options) {
-    if (options.path != null) {
-      dotenvPath = _resolveHome(options.path)
-    }
-    if (options.encoding != null) {
-      encoding = options.encoding
-    }
-  }
-
-  try {
-    // Specifying an encoding returns a string instead of a buffer
-    const parsed = DotenvModule.parse(fs.readFileSync(dotenvPath, { encoding }))
-
-    Object.keys(parsed).forEach(function (key) {
-      if (!Object.prototype.hasOwnProperty.call(({}), key)) {
-        ({})[key] = parsed[key]
-      } else {
-        if (override === true) {
-          ({})[key] = parsed[key]
-        }
-
-        if (debug) {
-          if (override === true) {
-            _log(`"${key}" is already defined in \`process.env\` and WAS overwritten`)
-          } else {
-            _log(`"${key}" is already defined in \`process.env\` and was NOT overwritten`)
-          }
-        }
-      }
-    })
-
-    return { parsed }
-  } catch (e) {
-    if (debug) {
-      _log(`Failed to load ${dotenvPath} ${e.message}`)
-    }
-
-    return { error: e }
-  }
-}
-
-const DotenvModule = {
-  config,
-  parse
-}
-
-module.exports.config = DotenvModule.config
-module.exports.parse = DotenvModule.parse
-module.exports = DotenvModule
 
 
 /***/ }),
@@ -10365,7 +10285,7 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _mui_material__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! @mui/material */ "./node_modules/@mui/material/Box/Box.js");
 /* harmony import */ var _images_pug_big_png__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../images/pug-big.png */ "./src/images/pug-big.png");
 /* harmony import */ var _layouts__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../layouts */ "./src/layouts/index.js");
-/* harmony import */ var _stripe_stripe_js__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! @stripe/stripe-js */ "./node_modules/@stripe/stripe-js/dist/stripe.esm.js");
+/* harmony import */ var _stripe_stripe_js_pure__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! @stripe/stripe-js/pure */ "./node_modules/@stripe/stripe-js/pure.js");
 /* harmony import */ var _emotion_react__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! @emotion/react */ "./node_modules/@emotion/react/dist/emotion-react.esm.js");
 
 
@@ -10378,17 +10298,14 @@ __webpack_require__.r(__webpack_exports__);
 
  //stripe package
 
-
-
-
-(__webpack_require__(/*! dotenv */ "./node_modules/dotenv/lib/main.js").config)(); //security
+ //security
 
 
 let stripePromise;
 
 const getStripe = () => {
   if (!stripePromise) {
-    stripePromise = (0,_stripe_stripe_js__WEBPACK_IMPORTED_MODULE_3__.loadStripe)(({}).REACT_APP_STRIPE_PUBLIC_KEY); //not let otherd know your key
+    stripePromise = (0,_stripe_stripe_js_pure__WEBPACK_IMPORTED_MODULE_3__.loadStripe)('pk_test_51KZALEIJlvNDy7qbeSBwBygyNX8NyusvMQVPPDL4uTKJ9uLbqVkce4muuifCAZ3M7eRVfo6qzKktfaSFavyQwRHv00qBpUZiqj'); //not let otherd know your key
   }
 
   return stripePromise;
@@ -10416,9 +10333,6 @@ const redirectToCheckout = async () => {
 };
 
 function index() {
-  (0,react__WEBPACK_IMPORTED_MODULE_0__.useEffect)(() => {
-    console.log(({}).REACT_APP_STRIPE_KEY);
-  }, []);
   return (0,_emotion_react__WEBPACK_IMPORTED_MODULE_4__.jsx)(_layouts__WEBPACK_IMPORTED_MODULE_2__["default"], null, (0,_emotion_react__WEBPACK_IMPORTED_MODULE_4__.jsx)(_mui_material__WEBPACK_IMPORTED_MODULE_5__["default"], {
     sx: {
       position: 'relative',
