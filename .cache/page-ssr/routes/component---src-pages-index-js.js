@@ -8180,115 +8180,124 @@ function toVal(mix) {
   \*****************************************/
 /***/ ((module, __unused_webpack_exports, __webpack_require__) => {
 
+/* @flow */
+/*::
+
+type DotenvParseOptions = {
+  debug?: boolean
+}
+
+// keys and values from src
+type DotenvParseOutput = { [string]: string }
+
+type DotenvConfigOptions = {
+  path?: string, // path to .env file
+  encoding?: string, // encoding of .env file
+  debug?: string // turn on logging for debugging purposes
+}
+
+type DotenvConfigOutput = {
+  parsed?: DotenvParseOutput,
+  error?: Error
+}
+
+*/
+
 const fs = __webpack_require__(/*! fs */ "fs")
 const path = __webpack_require__(/*! path */ "path")
 const os = __webpack_require__(/*! os */ "os")
 
-const LINE = /(?:^|^)\s*(?:export\s+)?([\w.-]+)(?:\s*=\s*?|:\s+?)(\s*'(?:\\'|[^'])*'|\s*"(?:\\"|[^"])*"|\s*`(?:\\`|[^`])*`|[^#\r\n]+)?\s*(?:#.*)?(?:$|$)/mg
+function log (message /*: string */) {
+  console.log(`[dotenv][DEBUG] ${message}`)
+}
 
-// Parser src into an Object
-function parse (src) {
+const NEWLINE = '\n'
+const RE_INI_KEY_VAL = /^\s*([\w.-]+)\s*=\s*(.*)?\s*$/
+const RE_NEWLINES = /\\n/g
+const NEWLINES_MATCH = /\r\n|\n|\r/
+
+// Parses src into an Object
+function parse (src /*: string | Buffer */, options /*: ?DotenvParseOptions */) /*: DotenvParseOutput */ {
+  const debug = Boolean(options && options.debug)
   const obj = {}
 
-  // Convert buffer to string
-  let lines = src.toString()
+  // convert Buffers before splitting into lines and processing
+  src.toString().split(NEWLINES_MATCH).forEach(function (line, idx) {
+    // matching "KEY' and 'VAL' in 'KEY=VAL'
+    const keyValueArr = line.match(RE_INI_KEY_VAL)
+    // matched?
+    if (keyValueArr != null) {
+      const key = keyValueArr[1]
+      // default undefined or missing values to empty string
+      let val = (keyValueArr[2] || '')
+      const end = val.length - 1
+      const isDoubleQuoted = val[0] === '"' && val[end] === '"'
+      const isSingleQuoted = val[0] === "'" && val[end] === "'"
 
-  // Convert line breaks to same format
-  lines = lines.replace(/\r\n?/mg, '\n')
+      // if single or double quoted, remove quotes
+      if (isSingleQuoted || isDoubleQuoted) {
+        val = val.substring(1, end)
 
-  let match
-  while ((match = LINE.exec(lines)) != null) {
-    const key = match[1]
+        // if double quoted, expand newlines
+        if (isDoubleQuoted) {
+          val = val.replace(RE_NEWLINES, NEWLINE)
+        }
+      } else {
+        // remove surrounding whitespace
+        val = val.trim()
+      }
 
-    // Default undefined or null to empty string
-    let value = (match[2] || '')
-
-    // Remove whitespace
-    value = value.trim()
-
-    // Check if double quoted
-    const maybeQuote = value[0]
-
-    // Remove surrounding quotes
-    value = value.replace(/^(['"`])([\s\S]*)\1$/mg, '$2')
-
-    // Expand newlines if double quoted
-    if (maybeQuote === '"') {
-      value = value.replace(/\\n/g, '\n')
-      value = value.replace(/\\r/g, '\r')
+      obj[key] = val
+    } else if (debug) {
+      log(`did not match key and value when parsing line ${idx + 1}: ${line}`)
     }
-
-    // Add to object
-    obj[key] = value
-  }
+  })
 
   return obj
 }
 
-function _log (message) {
-  console.log(`[dotenv][DEBUG] ${message}`)
-}
-
-function _resolveHome (envPath) {
+function resolveHome (envPath) {
   return envPath[0] === '~' ? path.join(os.homedir(), envPath.slice(1)) : envPath
 }
 
 // Populates process.env from .env file
-function config (options) {
+function config (options /*: ?DotenvConfigOptions */) /*: DotenvConfigOutput */ {
   let dotenvPath = path.resolve(process.cwd(), '.env')
-  let encoding = 'utf8'
-  const debug = Boolean(options && options.debug)
-  const override = Boolean(options && options.override)
+  let encoding /*: string */ = 'utf8'
+  let debug = false
 
   if (options) {
     if (options.path != null) {
-      dotenvPath = _resolveHome(options.path)
+      dotenvPath = resolveHome(options.path)
     }
     if (options.encoding != null) {
       encoding = options.encoding
     }
+    if (options.debug != null) {
+      debug = true
+    }
   }
 
   try {
-    // Specifying an encoding returns a string instead of a buffer
-    const parsed = DotenvModule.parse(fs.readFileSync(dotenvPath, { encoding }))
+    // specifying an encoding returns a string instead of a buffer
+    const parsed = parse(fs.readFileSync(dotenvPath, { encoding }), { debug })
 
     Object.keys(parsed).forEach(function (key) {
       if (!Object.prototype.hasOwnProperty.call(({}), key)) {
         ({})[key] = parsed[key]
-      } else {
-        if (override === true) {
-          ({})[key] = parsed[key]
-        }
-
-        if (debug) {
-          if (override === true) {
-            _log(`"${key}" is already defined in \`process.env\` and WAS overwritten`)
-          } else {
-            _log(`"${key}" is already defined in \`process.env\` and was NOT overwritten`)
-          }
-        }
+      } else if (debug) {
+        log(`"${key}" is already defined in \`process.env\` and will not be overwritten`)
       }
     })
 
     return { parsed }
   } catch (e) {
-    if (debug) {
-      _log(`Failed to load ${dotenvPath} ${e.message}`)
-    }
-
     return { error: e }
   }
 }
 
-const DotenvModule = {
-  config,
-  parse
-}
-
-module.exports.config = DotenvModule.config
-module.exports.parse = DotenvModule.parse
-module.exports = DotenvModule
+module.exports.config = config
+module.exports.parse = parse
 
 
 /***/ }),
@@ -10237,6 +10246,39 @@ function stripPrefix(str, prefix = ``) {
 
 /***/ }),
 
+/***/ "./src/components/utils/stripe.js":
+/*!****************************************!*\
+  !*** ./src/components/utils/stripe.js ***!
+  \****************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "default": () => (__WEBPACK_DEFAULT_EXPORT__)
+/* harmony export */ });
+/* harmony import */ var _stripe_stripe_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! @stripe/stripe-js */ "./node_modules/@stripe/stripe-js/dist/stripe.esm.js");
+/**
+ * This is a singleton to ensure we only instantiate Stripe once.
+ */
+
+
+(__webpack_require__(/*! dotenv */ "./node_modules/dotenv/lib/main.js").config)();
+
+let stripePromise;
+
+const getStripe = () => {
+  if (!stripePromise) {
+    stripePromise = (0,_stripe_stripe_js__WEBPACK_IMPORTED_MODULE_0__.loadStripe)(({}).REACT_STRIPE_PUBLISHABLE_KEY);
+  }
+
+  return stripePromise;
+};
+
+/* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = (getStripe);
+
+/***/ }),
+
 /***/ "./src/layouts/index.js":
 /*!******************************!*\
   !*** ./src/layouts/index.js ***!
@@ -10365,7 +10407,7 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _mui_material__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! @mui/material */ "./node_modules/@mui/material/Box/Box.js");
 /* harmony import */ var _images_pug_big_png__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../images/pug-big.png */ "./src/images/pug-big.png");
 /* harmony import */ var _layouts__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../layouts */ "./src/layouts/index.js");
-/* harmony import */ var _stripe_stripe_js__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! @stripe/stripe-js */ "./node_modules/@stripe/stripe-js/dist/stripe.esm.js");
+/* harmony import */ var _components_utils_stripe__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ../components/utils/stripe */ "./src/components/utils/stripe.js");
 /* harmony import */ var _emotion_react__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! @emotion/react */ "./node_modules/@emotion/react/dist/emotion-react.esm.js");
 
 
@@ -10376,23 +10418,8 @@ __webpack_require__.r(__webpack_exports__);
 
 
 
- //stripe package
 
-
-
-
-(__webpack_require__(/*! dotenv */ "./node_modules/dotenv/lib/main.js").config)(); //security
-
-
-let stripePromise;
-
-const getStripe = () => {
-  if (!stripePromise) {
-    stripePromise = (0,_stripe_stripe_js__WEBPACK_IMPORTED_MODULE_3__.loadStripe)(({}).REACT_APP_STRIPE_PUBLIC_KEY); //not let otherd know your key
-  }
-
-  return stripePromise;
-}; // item u want to sell
+ // item u want to sell
 
 
 const item = {
@@ -10408,7 +10435,7 @@ const checkoutOption = {
 
 const redirectToCheckout = async () => {
   console.log('redirectToCheckout');
-  const stripe = await getStripe();
+  const stripe = await (0,_components_utils_stripe__WEBPACK_IMPORTED_MODULE_3__["default"])();
   const {
     error
   } = await stripe.redirectToCheckout(checkoutOption);
@@ -10416,9 +10443,6 @@ const redirectToCheckout = async () => {
 };
 
 function index() {
-  (0,react__WEBPACK_IMPORTED_MODULE_0__.useEffect)(() => {
-    console.log(({}).REACT_APP_STRIPE_KEY);
-  }, []);
   return (0,_emotion_react__WEBPACK_IMPORTED_MODULE_4__.jsx)(_layouts__WEBPACK_IMPORTED_MODULE_2__["default"], null, (0,_emotion_react__WEBPACK_IMPORTED_MODULE_4__.jsx)(_mui_material__WEBPACK_IMPORTED_MODULE_5__["default"], {
     sx: {
       position: 'relative',

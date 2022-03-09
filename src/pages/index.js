@@ -8,20 +8,8 @@ import Typography from '@mui/material/Typography'
 import { Box } from '@mui/material'
 import Pug from '../images/pug-big.png'
 import Layout from '../layouts'
+import getStripe from '../components/utils/stripe'
 
-//stripe package
-import { loadStripe } from '@stripe/stripe-js/pure'
-
-//security
-let stripePromise
-const getStripe = () => {
-  if (!stripePromise) {
-    stripePromise = loadStripe(
-      'pk_test_51KZALEIJlvNDy7qbeSBwBygyNX8NyusvMQVPPDL4uTKJ9uLbqVkce4muuifCAZ3M7eRVfo6qzKktfaSFavyQwRHv00qBpUZiqj'
-    ) //not let otherd know your key
-  }
-  return stripePromise
-}
 // item u want to sell
 const item = {
   price: 'price_1KZRORIJlvNDy7qbAK4ExWye',
